@@ -1,0 +1,61 @@
+name: From Figma
+
+on:
+  workflow_dispatch:
+    inputs:
+      fileKey:
+        description: Figma file key
+        type: string
+        required: true
+      page:
+        description: Stringified selected page (id, name)
+        type: string
+        default: '{}'
+        required: true
+      selection:
+        description: Stringified array of the selected nodes (id, name)
+        type: string
+        default: '[]'
+        required: true
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@v2
+
+      - name: Transform Inputs 🧬
+        id: transformInputs
+        uses: ./.github/actions/transform-inputs
+        with:
+          fileKey: ${{ github.event.inputs.fileKey }}
+          page: ${{ github.event.inputs.page }}
+          selection: ${{ github.event.inputs.selection }}
+
+      - name: Figma Export PDFs 🦾
+        id: figmaExportPdfs
+        uses: ./
+        with:
+          accessToken: ${{ secrets.FIGMA_ACCESS_TOKEN }}
+          fileKey: ${{ steps.transformInputs.outputs.fileKey }}
+          ids: ${{ steps.transformInputs.outputs.ids }}
+
+      - name: Log ℹ️
+        run: |
+          echo "Results"
+          echo "pdfs: $pdfs"
+          echo "outDir: $outDir"
+        env:
+          pdfs: ${{ steps.figmaExportPdfs.outputs.pdfs }}
+          outDir: ${{ steps.figmaExportPdfs.outputs.outDir }}
+
+      - name: Upload 📂
+        uses: SamKirkland/FTP-Deploy-Action@4.0.0
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ${{ steps.figmaExportPdfs.outputs.outDir }}
+          server-dir: ./pdf-test/
